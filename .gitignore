@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# VS Code Extension
+*.vsix
+
+# Doc-Architect generated
+.doc-architect/vectors/
+.doc-architect/parsers/
+
+# Tree-sitter WASM files (downloaded on first use)
+*.wasm
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp

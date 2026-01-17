@@ -1,0 +1,215 @@
+{
+  "name": "doc-architect",
+  "displayName": "Doc-Architect",
+  "description": "Self-Healing Documentation Engine - A VS Code Agent Skill for autonomous documentation management",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelTools": [
+      {
+        "name": "doc-architect_index_codebase",
+        "displayName": "Index Codebase",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "indexCodebase",
+        "icon": "$(database)",
+        "userDescription": "Index the codebase for semantic search using AST-based chunking",
+        "modelDescription": "Indexes the current workspace codebase by parsing source files into semantic chunks (functions, classes, modules) using tree-sitter AST, then generates embeddings for vector search. Use this when the user wants to analyze, understand, or search the codebase semantically. Returns the number of chunks indexed and any errors encountered.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional array of file or folder paths to index. If empty, indexes the entire workspace."
+            },
+            "force": {
+              "type": "boolean",
+              "description": "If true, re-index even if already indexed. Default false."
+            }
+          }
+        }
+      },
+      {
+        "name": "doc-architect_query_docs",
+        "displayName": "Query Documentation",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "queryDocs",
+        "icon": "$(search)",
+        "userDescription": "Semantic search over indexed code and documentation",
+        "modelDescription": "Performs semantic similarity search over the indexed codebase and documentation. Use this to find relevant code chunks, functions, or documentation that relate to a user query. Returns the top matching chunks with their file locations, content, and similarity scores.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The natural language query to search for"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of results to return. Default 5."
+            },
+            "filter": {
+              "type": "string",
+              "enum": ["code", "docs", "all"],
+              "description": "Filter results by type. Default 'all'."
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "doc-architect_write_file",
+        "displayName": "Write Documentation File",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "writeDoc",
+        "icon": "$(file-add)",
+        "userDescription": "Write or update a documentation file",
+        "modelDescription": "Writes content to a documentation file. Use this to create or update markdown files in the docs/ folder, update README, or modify any documentation. The user will be asked to confirm before writing. Returns success status and the file path written.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path to the file to write"
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["overwrite", "append", "prepend"],
+              "description": "Write mode. Default 'overwrite'."
+            }
+          },
+          "required": ["path", "content"]
+        }
+      },
+      {
+        "name": "doc-architect_check_staleness",
+        "displayName": "Check Documentation Staleness",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "checkStaleness",
+        "icon": "$(warning)",
+        "userDescription": "Check if documentation is stale compared to code",
+        "modelDescription": "Compares code chunk embeddings with their associated documentation embeddings to detect drift. Use this to find documentation that may be outdated after code changes. Returns a list of potentially stale docs with drift scores and suggested actions.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional paths to check. If empty, checks all indexed files."
+            },
+            "threshold": {
+              "type": "number",
+              "description": "Similarity threshold below which docs are considered stale. Default 0.85."
+            }
+          }
+        }
+      },
+      {
+        "name": "doc-architect_run_ralph_loop",
+        "displayName": "Run Ralph Autopilot",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "runRalph",
+        "icon": "$(play-circle)",
+        "userDescription": "Run autonomous task loop from PROGRESS.md",
+        "modelDescription": "Starts the Ralph autopilot loop that reads tasks from PROGRESS.md and executes them one by one. Each unchecked task (- [ ]) is processed, validated, and marked complete (- [x]). Has safety limits: MAX_ITERATIONS=10, per-task timeout of 30 seconds, and stuck-task detection (aborts after 3 failed attempts on same task). Use when user wants autonomous documentation generation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "dryRun": {
+              "type": "boolean",
+              "description": "If true, shows what would be done without executing. Default false."
+            },
+            "maxIterations": {
+              "type": "number",
+              "description": "Override max iterations. Default 10, max 20."
+            }
+          }
+        }
+      },
+      {
+        "name": "doc-architect_move_spec",
+        "displayName": "Move Spec to Done",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "moveSpec",
+        "icon": "$(check)",
+        "userDescription": "Move a completed spec from ACTIVE to DONE folder",
+        "modelDescription": "Moves a specification file from docs/specs/ACTIVE/ to docs/specs/DONE/ after it has been implemented. Updates the spec with completion timestamp. Use when a spec has been fully implemented.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "specName": {
+              "type": "string",
+              "description": "Name of the spec file (e.g., 'SPEC-001-feature-name.md')"
+            }
+          },
+          "required": ["specName"]
+        }
+      },
+      {
+        "name": "doc-architect_append_changelog",
+        "displayName": "Append to Changelog",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "appendChangelog",
+        "icon": "$(history)",
+        "userDescription": "Add an entry to the changelog",
+        "modelDescription": "Appends a new entry to docs/CHANGELOG.md under the appropriate version section. Follows Keep a Changelog format. Use after completing features, fixes, or documentation updates.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"],
+              "description": "Type of change"
+            },
+            "description": {
+              "type": "string",
+              "description": "Description of the change"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version to add under. Default 'Unreleased'."
+            }
+          },
+          "required": ["type", "description"]
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "postinstall": "node scripts/download-grammars.js"
+  },
+  "dependencies": {
+    "vectra": "^0.12.3",
+    "web-tree-sitter": "^0.26.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.106.0",
+    "@typescript-eslint/eslint-plugin": "^7.x",
+    "@typescript-eslint/parser": "^7.x",
+    "eslint": "^8.x",
+    "typescript": "^5.x"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "^2.17.2"
+  }
+}

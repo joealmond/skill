@@ -1,0 +1,94 @@
+{
+  "$schema": "./config.schema.json",
+  "version": "1.0.0",
+  
+  "indexing": {
+    "include": [
+      "src/**/*.{ts,js,tsx,jsx}",
+      "docs/**/*.md",
+      "*.md"
+    ],
+    "exclude": [
+      "node_modules/**",
+      "dist/**",
+      "*.min.js",
+      ".git/**"
+    ],
+    "chunkSize": 500,
+    "chunkOverlap": 50
+  },
+  
+  "embeddings": {
+    "provider": "vscode",
+    "fallback": "@xenova/transformers",
+    "model": "all-MiniLM-L6-v2",
+    "dimensions": 384,
+    "lazyLoad": true
+  },
+  
+  "vectorDb": {
+    "provider": "vectra",
+    "storagePath": ".doc-architect/vectors",
+    "indexName": "doc-architect-index"
+  },
+  
+  "staleness": {
+    "threshold": 0.85,
+    "severity": {
+      "critical": 0.5,
+      "warning": 0.7,
+      "info": 0.85
+    },
+    "ignorePaths": [
+      "docs/gallery/**",
+      "CHANGELOG.md"
+    ]
+  },
+  
+  "ralph": {
+    "progressFile": "PROGRESS.md",
+    "maxIterations": 10,
+    "taskTimeout": 30000,
+    "maxRetries": 3,
+    "stuckThreshold": 3,
+    "priorities": {
+      "P0": "critical",
+      "P1": "high", 
+      "P2": "normal"
+    }
+  },
+  
+  "specs": {
+    "activePath": "docs/specs/ACTIVE",
+    "donePath": "docs/specs/DONE",
+    "templatePath": "docs/specs/TEMPLATE.md"
+  },
+  
+  "changelog": {
+    "path": "docs/CHANGELOG.md",
+    "format": "keepachangelog",
+    "categories": [
+      "Added",
+      "Changed", 
+      "Deprecated",
+      "Removed",
+      "Fixed",
+      "Security"
+    ]
+  },
+  
+  "treeSitter": {
+    "languages": ["javascript", "typescript"],
+    "wasmPath": ".doc-architect/parsers",
+    "lazyLoad": true
+  },
+  
+  "agents": {
+    "defaultModel": "copilot-claude-sonnet-4",
+    "handoffs": {
+      "doc-architect": ["doc-guardian", "doc-ralph"],
+      "doc-guardian": ["doc-architect"],
+      "doc-ralph": ["doc-architect"]
+    }
+  }
+}
