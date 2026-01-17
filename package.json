@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "start": "node out/mcp-server.js"
+    "start": "node out/mcp-server.js",
+    "postinstall": "node scripts/download-grammars.cjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
