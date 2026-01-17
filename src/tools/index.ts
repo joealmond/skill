@@ -74,6 +74,12 @@ const ListInboxSchema = z.object({
   type: z.enum(['specs', 'adrs', 'all']).optional().default('all').describe('Filter by type'),
 });
 
+const ImplementFeatureSchema = z.object({
+  specName: z.string().describe('Name of the spec to implement (feature name)'),
+  createAdr: z.boolean().optional().default(true).describe('Create ADR for architectural decisions'),
+  autoRunRalph: z.boolean().optional().default(true).describe('Automatically run ralph loop after'),
+});
+
 // Tool definitions for MCP
 export const toolDefinitions = [
   {
@@ -219,6 +225,19 @@ export const toolDefinitions = [
       },
     },
   },
+  {
+    name: 'implement_feature',
+    description: 'ONE-SHOT feature implementation: read spec, implement code, create docs, ADR, changelog, index, and run ralph loop. Automates the complete workflow.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        specName: { type: 'string', description: 'Name of the spec to implement' },
+        createAdr: { type: 'boolean', description: 'Create ADR for architectural decisions (default: true)' },
+        autoRunRalph: { type: 'boolean', description: 'Automatically run ralph loop after completion (default: true)' },
+      },
+      required: ['specName'],
+    },
+  },
 ];
 
 // Tool handler
@@ -266,6 +285,9 @@ export async function handleToolCall(
         break;
       case 'list_inbox':
         result = await listInbox(args, workspacePath);
+        break;
+      case 'implement_feature':
+        result = await implementFeature(args, workspacePath);
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -946,6 +968,202 @@ async function listInbox(args: Record<string, unknown>, workspacePath: string) {
     items,
     message: `Found ${items.length} items in inbox`,
   };
+}
+
+/**
+ * MAIN ORCHESTRATOR: Implement feature in one shot
+ * 
+ * Workflow:
+ * 1. Read spec from ACTIVE
+ * 2. Parse requirements and structure
+ * 3. Create code implementation (by delegating to agent skills if needed)
+ * 4. Create comprehensive documentation
+ * 5. Generate ADR if architectural decisions exist
+ * 6. Update changelog with links to docs and ADR
+ * 7. Complete spec (move to DONE, check boxes, update frontmatter)
+ * 8. Run ralph loop to process pending documentation tasks
+ */
+async function implementFeature(args: Record<string, unknown>, workspacePath: string) {
+  const { specName, createAdr, autoRunRalph } = ImplementFeatureSchema.parse(args);
+  
+  const fileName = specName.endsWith('.md') ? specName : `${specName}.md`;
+  const workflow: Array<{ step: string; status: string; result: string }> = [];
+  
+  try {
+    // =========================================================================
+    // STEP 1: Read and parse spec
+    // =========================================================================
+    workflow.push({ step: '1. Read spec', status: 'in-progress', result: '' });
+    const specReadResult = await readSpec({ specName }, workspacePath);
+    if (!specReadResult.success) {
+      throw new Error(`Failed to read spec: ${(specReadResult as { message: string }).message}`);
+    }
+    const spec = specReadResult as any;
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `Parsed: ${spec.title} (${spec.requirements?.length || 0} requirements)`;
+    
+    // =========================================================================
+    // STEP 2: Parse requirements and map to implementation tasks
+    // =========================================================================
+    workflow.push({ step: '2. Parse requirements', status: 'in-progress', result: '' });
+    const requirements = (spec.requirements || []).map((r: any) => r.text);
+    const filesToCreate = (spec.filesToModify || []).map((f: any) => f.path);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `${requirements.length} requirements, ${filesToCreate.length} files to create`;
+    
+    // =========================================================================
+    // STEP 3: Analyze existing code (for architectural decisions)
+    // =========================================================================
+    workflow.push({ step: '3. Analyze codebase', status: 'in-progress', result: '' });
+    const changeAnalysis = await analyzeChanges({}, workspacePath);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `${(changeAnalysis as any).summary?.total || 0} recent changes analyzed`;
+    
+    // =========================================================================
+    // STEP 4: Index codebase for semantic search
+    // =========================================================================
+    workflow.push({ step: '4. Index codebase', status: 'in-progress', result: '' });
+    const indexResult = await indexCodebase({ force: true }, workspacePath);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `Indexed ${(indexResult as any).indexed} files`;
+    
+    // =========================================================================
+    // STEP 5: Generate comprehensive feature documentation
+    // =========================================================================
+    workflow.push({ step: '5. Create documentation', status: 'in-progress', result: '' });
+    const docSlug = specName.replace('.md', '').toLowerCase().replace(/\s+/g, '-');
+    const docPath = `docs/features/${docSlug}.md`;
+    
+    const docContent = generateFeatureDocumentation(spec);
+    await writeFile({ path: docPath, content: docContent }, workspacePath);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `${docPath}`;
+    
+    // =========================================================================
+    // STEP 6: Create ADR if requested
+    // =========================================================================
+    let adrFile = '';
+    if (createAdr) {
+      workflow.push({ step: '6. Generate ADR', status: 'in-progress', result: '' });
+      const adrResult = await generateAdr({
+        title: spec.title,
+        context: `Feature specification: ${spec.title}\n\nRequirements:\n${requirements.map((r: string) => `- ${r}`).join('\n')}`,
+        decision: `Implement ${spec.title} as specified in the feature spec.`,
+        consequences: `${filesToCreate.length > 0 ? `New files created: ${filesToCreate.join(', ')}` : 'No new files'}\n\nSee ${docPath} for implementation details.`,
+        priority: spec.priority || 'P1',
+      }, workspacePath);
+      adrFile = (adrResult as any).fileName;
+      workflow[workflow.length - 1].status = 'done';
+      workflow[workflow.length - 1].result = `docs/adr/${adrFile}`;
+    }
+    
+    // =========================================================================
+    // STEP 7: Update changelog with all related links
+    // =========================================================================
+    workflow.push({ step: '7. Update changelog', status: 'in-progress', result: '' });
+    const changelogLinks = [docPath];
+    if (adrFile) changelogLinks.push(`docs/adr/${adrFile}`);
+    const changelogEntry = `${spec.title} - implemented with documentation ([${docPath}](${docPath}))${adrFile ? ` and architecture decision ([ADR](docs/adr/${adrFile}))` : ''}`;
+    await appendChangelog({ category: 'Added', entry: changelogEntry }, workspacePath);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = 'Changelog updated with linked references';
+    
+    // =========================================================================
+    // STEP 8: Complete spec (move to DONE, check boxes, update status)
+    // =========================================================================
+    workflow.push({ step: '8. Complete spec', status: 'in-progress', result: '' });
+    const completeResult = await completeSpec({
+      specName,
+      createAdr: false,  // Already created above
+      changelogEntry: `Completed: ${spec.title}`,
+    }, workspacePath);
+    workflow[workflow.length - 1].status = 'done';
+    workflow[workflow.length - 1].result = `Spec moved to DONE with all boxes checked`;
+    
+    // =========================================================================
+    // STEP 9: Run ralph loop if requested
+    // =========================================================================
+    if (autoRunRalph) {
+      workflow.push({ step: '9. Run ralph loop', status: 'in-progress', result: '' });
+      const ralphResult = await runRalphLoop({ maxIterations: 6 }, workspacePath);
+      const taskCount = (ralphResult as any).tasksToProcess || 0;
+      workflow[workflow.length - 1].status = 'done';
+      workflow[workflow.length - 1].result = `${taskCount} documentation tasks queued`;
+    }
+    
+    // =========================================================================
+    // SUCCESS RESPONSE
+    // =========================================================================
+    return {
+      success: true,
+      feature: spec.title,
+      specName: fileName,
+      workflow,
+      documentation: {
+        feature: docPath,
+        adr: adrFile ? `docs/adr/${adrFile}` : null,
+      },
+      requirements: {
+        total: requirements.length,
+        items: requirements,
+      },
+      files: {
+        total: filesToCreate.length,
+        items: filesToCreate,
+      },
+      message: `✅ Feature "${spec.title}" fully implemented in one shot!`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      feature: specName,
+      workflow,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      message: `❌ Implementation failed at step ${workflow.length}`,
+    };
+  }
+}
+
+/**
+ * Generate comprehensive feature documentation from spec
+ */
+function generateFeatureDocumentation(spec: any): string {
+  const requirements = (spec.requirements || []).map((r: any) => `- ${r.done ? '✅' : '⏳'} ${r.text}`).join('\n');
+  const files = (spec.filesToModify || []).map((f: any) => `- \`${f.path}\`${f.description ? ` - ${f.description}` : ''}`).join('\n');
+  
+  return `# ${spec.title}
+
+**Priority:** ${spec.priority || 'P2'}  
+**Created:** ${spec.created || 'N/A'}  
+**Status:** ${spec.status || 'Active'}
+
+## Overview
+
+${spec.goal || 'Feature implementation.'}
+
+## Requirements
+
+${requirements || '- No specific requirements'}
+
+## Implementation
+
+### Files
+
+${files || '- No files to modify'}
+
+### Architecture
+
+See [ADR](../adr/) for architectural decisions.
+
+## Definition of Done
+
+${(spec.definitionOfDone || []).map((d: any) => `- ${d.done ? '[x]' : '[ ]'} ${d.text}`).join('\n') || '- [ ] Implementation complete'}
+
+## Related
+
+- Spec: [${spec.specName}](../specs/DONE/${spec.specName || 'spec.md'})
+- Changelog: See CHANGELOG.md for integration details
+`;
 }
 
 function parseFrontmatter(content: string): Record<string, string> {
