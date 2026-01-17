@@ -8,17 +8,14 @@ tools:
   - checkStaleness
   - moveSpec
   - appendChangelog
-  - search
-  - fetch
-  - usages
-model: Claude Sonnet 4
+model: copilot-claude-sonnet-4
 handoffs:
   - label: 🛡️ Switch to Guardian Mode
-    agent: doc-guardian
+    agent: Doc-Guardian
     prompt: Check for stale documentation in this codebase.
     send: false
   - label: 🤖 Start Autopilot
-    agent: doc-ralph
+    agent: Doc-Ralph
     prompt: Run the Ralph loop to process PROGRESS.md tasks.
     send: false
 ---

@@ -5,16 +5,14 @@ tools:
   - indexCodebase
   - queryDocs
   - checkStaleness
-  - search
-  - usages
-model: Claude Sonnet 4
+model: copilot-claude-sonnet-4
 handoffs:
   - label: 📝 Fix Issues with Architect
-    agent: doc-architect
+    agent: Doc-Architect
     prompt: Fix the stale documentation issues found above.
     send: false
   - label: 🤖 Bulk Fix with Autopilot
-    agent: doc-ralph
+    agent: Doc-Ralph
     prompt: Create a PROGRESS.md with tasks to fix all stale docs.
     send: false
 ---

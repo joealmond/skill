@@ -9,12 +9,10 @@ tools:
   - moveSpec
   - appendChangelog
   - runRalph
-  - search
-  - usages
-model: Claude Sonnet 4
+model: copilot-claude-sonnet-4
 handoffs:
   - label: 🛑 Stop and Review
-    agent: doc-architect
+    agent: Doc-Architect
     prompt: Review the changes made by Ralph and suggest improvements.
     send: false
 ---
