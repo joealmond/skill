@@ -1,46 +1,62 @@
 # Doc-Architect Documentation
 
-Welcome to the Doc-Architect documentation system. This folder contains all project documentation organized by type.
+This folder contains all project documentation.
 
-## 📁 Structure
+## Structure
 
 ```
 docs/
 ├── README.md           # This file
 ├── CHANGELOG.md        # Version history
-├── GLOSSARY.md         # Project terminology
 ├── specs/              # Feature specifications
 │   ├── ACTIVE/         # Specs in progress
 │   ├── DONE/           # Completed specs
 │   └── TEMPLATE.md     # Spec template
-├── adr/                # Architecture Decision Records
-│   ├── INDEX.md        # ADR listing
-│   └── TEMPLATE.md     # ADR template
-└── gallery/            # Generated documentation
-    └── INDEX.md        # Gallery index
+└── adr/                # Architecture Decision Records
+    ├── INDEX.md        # ADR listing
+    └── TEMPLATE.md     # ADR template
 ```
 
-## 🚀 Quick Links
+## Workflows
 
-- [Changelog](./CHANGELOG.md) - What's new
-- [Glossary](./GLOSSARY.md) - Project terminology
-- [Active Specs](./specs/ACTIVE/) - Current work
-- [Architecture Decisions](./adr/INDEX.md) - Why we built it this way
-- [Documentation Gallery](./gallery/INDEX.md) - Generated docs
+### Spec-Driven Development
 
-## 📝 Contributing Documentation
+1. Create spec: `docs/specs/ACTIVE/my-feature.md`
+2. `@architect read spec my-feature`
+3. Implement code
+4. `@architect complete spec my-feature`
 
-### Creating a Spec
-1. Copy `specs/TEMPLATE.md` to `specs/ACTIVE/SPEC-XXX-name.md`
-2. Fill in the template
-3. When complete, use `@doc-architect` to move to DONE
+The `complete_spec` tool:
+- Moves spec to DONE/
+- Adds changelog entry
+- Generates ADR if warranted
 
-### Creating an ADR
-1. Copy `adr/TEMPLATE.md` to `adr/ADR-XXX-title.md`
-2. Fill in the decision details
-3. Update `adr/INDEX.md`
+### Manual Coding + Docs
 
-### Using Doc-Architect Agent
-- Type `@doc-architect` in VS Code chat for documentation help
-- Use `/update-readme` for quick README updates
-- Use `/generate-architecture` for diagrams
+1. Write code
+2. `@architect analyze changes`
+3. `@architect add changelog: Added feature X`
+
+## Using the Agents
+
+### @architect
+Full capabilities - specs, coding, documentation.
+
+```
+@architect what's in my inbox?
+@architect read spec user-auth
+@architect complete spec user-auth
+```
+
+### @docs
+Documentation-only (no code changes).
+
+```
+@docs check docs health
+@docs add changelog: Fixed login bug
+```
+
+## Templates
+
+- [specs/TEMPLATE.md](specs/TEMPLATE.md) - Spec template with frontmatter
+- [adr/TEMPLATE.md](adr/TEMPLATE.md) - ADR template with frontmatter

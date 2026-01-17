@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 // Tool input schemas
 const IndexCodebaseSchema = z.object({
@@ -44,6 +45,33 @@ const AppendChangelogSchema = z.object({
   version: z.string().optional().default('Unreleased').describe('Version section'),
   category: z.enum(['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security']),
   entry: z.string().describe('Changelog entry text'),
+});
+
+const ReadSpecSchema = z.object({
+  specName: z.string().describe('Name of the spec file (with or without .md)'),
+});
+
+const AnalyzeChangesSchema = z.object({
+  since: z.string().optional().describe('Git ref to compare against (default: HEAD~1)'),
+});
+
+const GenerateAdrSchema = z.object({
+  title: z.string().describe('Short title for the ADR'),
+  context: z.string().describe('What is the issue motivating this decision?'),
+  decision: z.string().describe('What was decided?'),
+  consequences: z.string().describe('What are the implications?'),
+  priority: z.enum(['P0', 'P1', 'P2']).optional().default('P1'),
+});
+
+const CompleteSpecSchema = z.object({
+  specName: z.string().describe('Name of the spec file'),
+  changelogEntry: z.string().optional().describe('Custom changelog entry (auto-generated if not provided)'),
+  createAdr: z.boolean().optional().default(false).describe('Create an ADR for this change'),
+  adrContext: z.string().optional().describe('Context for ADR if creating one'),
+});
+
+const ListInboxSchema = z.object({
+  type: z.enum(['specs', 'adrs', 'all']).optional().default('all').describe('Filter by type'),
 });
 
 // Tool definitions for MCP
@@ -131,6 +159,66 @@ export const toolDefinitions = [
       required: ['category', 'entry'],
     },
   },
+  {
+    name: 'read_spec',
+    description: 'Parse a spec file from docs/specs/ACTIVE/ and extract structured requirements, files to modify, and definition of done.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        specName: { type: 'string', description: 'Name of the spec file (with or without .md)' },
+      },
+      required: ['specName'],
+    },
+  },
+  {
+    name: 'analyze_changes',
+    description: 'Analyze recent code changes using git diff or file modification times. Maps changes to affected documentation.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        since: { type: 'string', description: 'Git ref to compare against (default: HEAD~1)' },
+      },
+    },
+  },
+  {
+    name: 'generate_adr',
+    description: 'Create an Architecture Decision Record in docs/adr/. Auto-numbers and updates INDEX.md.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Short title for the ADR' },
+        context: { type: 'string', description: 'What is the issue motivating this decision?' },
+        decision: { type: 'string', description: 'What was decided?' },
+        consequences: { type: 'string', description: 'What are the implications?' },
+        priority: { type: 'string', enum: ['P0', 'P1', 'P2'], description: 'Priority (default: P1)' },
+      },
+      required: ['title', 'context', 'decision', 'consequences'],
+    },
+  },
+  {
+    name: 'complete_spec',
+    description: 'Complete a spec: add changelog entry, optionally create ADR, move spec to DONE. Full definition of done.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        specName: { type: 'string', description: 'Name of the spec file' },
+        changelogEntry: { type: 'string', description: 'Custom changelog entry (auto-generated if not provided)' },
+        createAdr: { type: 'boolean', description: 'Create an ADR for this change' },
+        adrContext: { type: 'string', description: 'Context for ADR if creating one' },
+      },
+      required: ['specName'],
+    },
+  },
+  {
+    name: 'list_inbox',
+    description: 'List all items in ACTIVE folders (specs + ADRs) sorted by priority. Shows what needs work.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        type: { type: 'string', enum: ['specs', 'adrs', 'all'], description: 'Filter by type (default: all)' },
+      },
+    },
+  },
 ];
 
 // Tool handler
@@ -163,6 +251,21 @@ export async function handleToolCall(
         break;
       case 'append_changelog':
         result = await appendChangelog(args, workspacePath);
+        break;
+      case 'read_spec':
+        result = await readSpec(args, workspacePath);
+        break;
+      case 'analyze_changes':
+        result = await analyzeChanges(args, workspacePath);
+        break;
+      case 'generate_adr':
+        result = await generateAdr(args, workspacePath);
+        break;
+      case 'complete_spec':
+        result = await completeSpec(args, workspacePath);
+        break;
+      case 'list_inbox':
+        result = await listInbox(args, workspacePath);
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -445,6 +548,361 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     entry,
     message: `Added ${category} entry to ${version}`,
   };
+}
+
+// =============================================================================
+// NEW TOOLS: read_spec, analyze_changes, generate_adr, complete_spec, list_inbox
+// =============================================================================
+
+async function readSpec(args: Record<string, unknown>, workspacePath: string) {
+  const { specName } = ReadSpecSchema.parse(args);
+  const fileName = specName.endsWith('.md') ? specName : `${specName}.md`;
+  const specPath = path.join(workspacePath, 'docs', 'specs', 'ACTIVE', fileName);
+  
+  let content: string;
+  try {
+    content = await fs.readFile(specPath, 'utf-8');
+  } catch {
+    return { success: false, message: `Spec not found: ${fileName}` };
+  }
+  
+  const frontmatter = parseFrontmatter(content);
+  const titleMatch = content.match(/^#\s+(?:Spec:\s*)?(.+)$/m);
+  const title = titleMatch ? titleMatch[1].trim() : fileName.replace('.md', '');
+  
+  // Extract goal
+  const goalMatch = content.match(/##\s*(?:Goal|Summary)\s*\n+([\s\S]*?)(?=\n##|$)/i);
+  const goal = goalMatch ? goalMatch[1].trim() : '';
+  
+  // Extract requirements
+  const requirements: Array<{ text: string; done: boolean }> = [];
+  const reqMatch = content.match(/##\s*Requirements\s*\n+([\s\S]*?)(?=\n##|$)/i);
+  if (reqMatch) {
+    const reqPattern = /^-\s*\[([ xX])\]\s*(.+)$/gm;
+    let match;
+    while ((match = reqPattern.exec(reqMatch[1])) !== null) {
+      requirements.push({ done: match[1].toLowerCase() === 'x', text: match[2].trim() });
+    }
+  }
+  
+  // Extract files to modify
+  const filesToModify: Array<{ path: string; description: string }> = [];
+  const filesMatch = content.match(/##\s*Files to Modify\s*\n+([\s\S]*?)(?=\n##|$)/i);
+  if (filesMatch) {
+    const filePattern = /^-\s*`([^`]+)`(?:\s*[-–]\s*(.+))?$/gm;
+    let match;
+    while ((match = filePattern.exec(filesMatch[1])) !== null) {
+      filesToModify.push({ path: match[1], description: match[2]?.trim() || '' });
+    }
+  }
+  
+  // Extract definition of done
+  const dod: Array<{ text: string; done: boolean }> = [];
+  const dodMatch = content.match(/##\s*Definition of Done\s*\n+([\s\S]*?)(?=\n##|$)/i);
+  if (dodMatch) {
+    const dodPattern = /^-\s*\[([ xX])\]\s*(.+)$/gm;
+    let match;
+    while ((match = dodPattern.exec(dodMatch[1])) !== null) {
+      dod.push({ done: match[1].toLowerCase() === 'x', text: match[2].trim() });
+    }
+  }
+  
+  return {
+    success: true,
+    specName: fileName,
+    title,
+    priority: frontmatter.priority || 'P2',
+    status: frontmatter.status || 'active',
+    created: frontmatter.created || null,
+    goal,
+    requirements,
+    filesToModify,
+    definitionOfDone: dod,
+    isComplete: dod.length > 0 && dod.every(item => item.done),
+  };
+}
+
+async function analyzeChanges(args: Record<string, unknown>, workspacePath: string) {
+  const { since } = AnalyzeChangesSchema.parse(args);
+  const ref = since || 'HEAD~1';
+  
+  const changedFiles: Array<{ file: string; changeType: string; affectedDocs: string[] }> = [];
+  
+  // Try git first
+  try {
+    const gitOutput = execSync(`git diff --name-status ${ref}`, {
+      cwd: workspacePath,
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
+    
+    const lines = gitOutput.trim().split('\n').filter(Boolean);
+    for (const line of lines) {
+      const [status, file] = line.split('\t');
+      if (!file) continue;
+      
+      const changeType = status === 'A' ? 'added' : status === 'D' ? 'deleted' : status === 'M' ? 'modified' : 'renamed';
+      const affectedDocs = mapFileToAffectedDocs(file);
+      changedFiles.push({ file, changeType, affectedDocs });
+    }
+    
+    return {
+      success: true,
+      method: 'git',
+      ref,
+      changedFiles,
+      summary: {
+        total: changedFiles.length,
+        added: changedFiles.filter(f => f.changeType === 'added').length,
+        modified: changedFiles.filter(f => f.changeType === 'modified').length,
+        deleted: changedFiles.filter(f => f.changeType === 'deleted').length,
+      },
+      message: `Found ${changedFiles.length} changed files since ${ref}`,
+    };
+  } catch {
+    // Fallback to file modification times (last 24h)
+    const files = await findFiles(workspacePath, ['.ts', '.js', '.tsx', '.jsx', '.md']);
+    const now = Date.now();
+    const recentFiles: Array<{ file: string; changeType: string; affectedDocs: string[] }> = [];
+    
+    for (const file of files) {
+      try {
+        const stats = await fs.stat(file);
+        const ageHours = (now - stats.mtimeMs) / (1000 * 60 * 60);
+        if (ageHours < 24) {
+          const relPath = path.relative(workspacePath, file);
+          recentFiles.push({
+            file: relPath,
+            changeType: 'modified',
+            affectedDocs: mapFileToAffectedDocs(relPath),
+          });
+        }
+      } catch { /* skip */ }
+    }
+    
+    return {
+      success: true,
+      method: 'mtime',
+      changedFiles: recentFiles,
+      summary: { total: recentFiles.length, modified: recentFiles.length },
+      message: `Found ${recentFiles.length} recently modified files (last 24h)`,
+    };
+  }
+}
+
+function mapFileToAffectedDocs(filePath: string): string[] {
+  const docs: string[] = [];
+  if (filePath.startsWith('src/')) {
+    docs.push('README.md');
+    if (filePath.includes('tools')) docs.push('docs/README.md');
+  }
+  if (filePath.endsWith('.md') && filePath.includes('specs/')) {
+    docs.push('docs/CHANGELOG.md');
+  }
+  return docs;
+}
+
+async function generateAdr(args: Record<string, unknown>, workspacePath: string) {
+  const { title, context, decision, consequences, priority } = GenerateAdrSchema.parse(args);
+  const adrDir = path.join(workspacePath, 'docs', 'adr');
+  
+  // Find next ADR number
+  let nextNum = 1;
+  try {
+    const files = await fs.readdir(adrDir);
+    const adrFiles = files.filter(f => /^\d{4}-/.test(f));
+    if (adrFiles.length > 0) {
+      const nums = adrFiles.map(f => parseInt(f.slice(0, 4), 10)).filter(n => !isNaN(n));
+      nextNum = Math.max(...nums) + 1;
+    }
+  } catch {
+    await fs.mkdir(adrDir, { recursive: true });
+  }
+  
+  const adrNum = String(nextNum).padStart(4, '0');
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const fileName = `${adrNum}-${slug}.md`;
+  const filePath = path.join(adrDir, fileName);
+  const today = new Date().toISOString().split('T')[0];
+  
+  const content = `---
+priority: ${priority}
+created: ${today}
+status: accepted
+---
+
+# ADR: ${title}
+
+## Context
+
+${context}
+
+## Decision
+
+${decision}
+
+## Consequences
+
+${consequences}
+`;
+  
+  await fs.writeFile(filePath, content, 'utf-8');
+  
+  // Update INDEX.md if exists
+  const indexPath = path.join(adrDir, 'INDEX.md');
+  try {
+    let indexContent = await fs.readFile(indexPath, 'utf-8');
+    const newEntry = `| [${adrNum}](${fileName}) | ${title} | accepted | ${today} |`;
+    if (indexContent.includes('| --- |')) {
+      indexContent = indexContent.trimEnd() + '\n' + newEntry + '\n';
+      await fs.writeFile(indexPath, indexContent, 'utf-8');
+    }
+  } catch { /* INDEX.md doesn't exist */ }
+  
+  return {
+    success: true,
+    adrNumber: adrNum,
+    fileName,
+    path: `docs/adr/${fileName}`,
+    message: `Created ADR ${adrNum}: ${title}`,
+  };
+}
+
+async function completeSpec(args: Record<string, unknown>, workspacePath: string) {
+  const { specName, changelogEntry, createAdr, adrContext } = CompleteSpecSchema.parse(args);
+  
+  const fileName = specName.endsWith('.md') ? specName : `${specName}.md`;
+  const activePath = path.join(workspacePath, 'docs', 'specs', 'ACTIVE', fileName);
+  const donePath = path.join(workspacePath, 'docs', 'specs', 'DONE', fileName);
+  
+  // Read spec to get title
+  let specContent: string;
+  let specTitle = specName;
+  try {
+    specContent = await fs.readFile(activePath, 'utf-8');
+    const titleMatch = specContent.match(/^#\s+(?:Spec:\s*)?(.+)$/m);
+    if (titleMatch) specTitle = titleMatch[1].trim();
+  } catch {
+    return { success: false, message: `Spec not found: ${fileName}` };
+  }
+  
+  const actions: string[] = [];
+  
+  // 1. Add changelog entry
+  const entry = changelogEntry || `Completed: ${specTitle}`;
+  await appendChangelog({ category: 'Added', entry }, workspacePath);
+  actions.push(`Changelog: "${entry}"`);
+  
+  // 2. Create ADR if requested
+  let adrResult = null;
+  if (createAdr) {
+    adrResult = await generateAdr({
+      title: specTitle,
+      context: adrContext || `Implementation of spec: ${specTitle}`,
+      decision: `Implemented ${specTitle} as specified.`,
+      consequences: 'See spec for details.',
+      priority: 'P1',
+    }, workspacePath);
+    actions.push(`ADR: ${(adrResult as { fileName: string }).fileName}`);
+  }
+  
+  // 3. Update spec status and move to DONE
+  const today = new Date().toISOString().split('T')[0];
+  specContent = specContent.replace(/status:\s*\w+/, 'status: done');
+  if (!specContent.includes('completed:')) {
+    specContent = specContent.replace(/---\n/, `---\ncompleted: ${today}\n`);
+  }
+  
+  await fs.mkdir(path.dirname(donePath), { recursive: true });
+  await fs.writeFile(donePath, specContent, 'utf-8');
+  await fs.unlink(activePath);
+  actions.push(`Moved to DONE`);
+  
+  return {
+    success: true,
+    specName: fileName,
+    title: specTitle,
+    actions,
+    message: `Completed spec: ${specTitle}`,
+  };
+}
+
+async function listInbox(args: Record<string, unknown>, workspacePath: string) {
+  const { type } = ListInboxSchema.parse(args);
+  
+  const items: Array<{
+    type: 'spec' | 'adr';
+    file: string;
+    title: string;
+    priority: string;
+    created: string | null;
+  }> = [];
+  
+  // List active specs
+  if (type === 'all' || type === 'specs') {
+    const specsDir = path.join(workspacePath, 'docs', 'specs', 'ACTIVE');
+    try {
+      const files = await fs.readdir(specsDir);
+      for (const file of files.filter(f => f.endsWith('.md') && f !== 'README.md')) {
+        try {
+          const content = await fs.readFile(path.join(specsDir, file), 'utf-8');
+          const fm = parseFrontmatter(content);
+          const titleMatch = content.match(/^#\s+(?:Spec:\s*)?(.+)$/m);
+          items.push({
+            type: 'spec',
+            file: `docs/specs/ACTIVE/${file}`,
+            title: titleMatch ? titleMatch[1].trim() : file.replace('.md', ''),
+            priority: fm.priority || 'P2',
+            created: fm.created || null,
+          });
+        } catch { /* skip */ }
+      }
+    } catch { /* directory doesn't exist */ }
+  }
+  
+  // List draft ADRs
+  if (type === 'all' || type === 'adrs') {
+    const adrDir = path.join(workspacePath, 'docs', 'adr');
+    try {
+      const files = await fs.readdir(adrDir);
+      for (const file of files.filter(f => f.endsWith('.md') && !['INDEX.md', 'TEMPLATE.md'].includes(f))) {
+        try {
+          const content = await fs.readFile(path.join(adrDir, file), 'utf-8');
+          const fm = parseFrontmatter(content);
+          if (fm.status === 'draft' || fm.status === 'proposed') {
+            const titleMatch = content.match(/^#\s+(?:ADR:\s*)?(.+)$/m);
+            items.push({
+              type: 'adr',
+              file: `docs/adr/${file}`,
+              title: titleMatch ? titleMatch[1].trim() : file.replace('.md', ''),
+              priority: fm.priority || 'P2',
+              created: fm.created || null,
+            });
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* directory doesn't exist */ }
+  }
+  
+  items.sort((a, b) => a.priority.localeCompare(b.priority));
+  
+  return {
+    success: true,
+    count: items.length,
+    items,
+    message: `Found ${items.length} items in inbox`,
+  };
+}
+
+function parseFrontmatter(content: string): Record<string, string> {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return {};
+  const result: Record<string, string> = {};
+  for (const line of match[1].split('\n')) {
+    const idx = line.indexOf(':');
+    if (idx > -1) result[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+  }
+  return result;
 }
 
 // Helper: Find files recursively
