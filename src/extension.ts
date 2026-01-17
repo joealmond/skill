@@ -28,21 +28,17 @@ export async function activate(context: vscode.ExtensionContext) {
     indexer = new Indexer(vectorDb);
     
     // Register all Language Model Tools
-    const tools = [
-        new IndexCodebaseTool(indexer),
-        new QueryDocsTool(vectorDb),
-        new WriteFileTool(),
-        new CheckStalenessTool(vectorDb),
-        new RunRalphLoopTool(),
-        new MoveSpecTool(),
-        new AppendChangelogTool(),
-    ];
+    context.subscriptions.push(
+        vscode.lm.registerTool('doc-architect_index_codebase', new IndexCodebaseTool(indexer)),
+        vscode.lm.registerTool('doc-architect_query_docs', new QueryDocsTool(vectorDb)),
+        vscode.lm.registerTool('doc-architect_write_file', new WriteFileTool()),
+        vscode.lm.registerTool('doc-architect_check_staleness', new CheckStalenessTool(vectorDb)),
+        vscode.lm.registerTool('doc-architect_run_ralph_loop', new RunRalphLoopTool()),
+        vscode.lm.registerTool('doc-architect_move_spec', new MoveSpecTool()),
+        vscode.lm.registerTool('doc-architect_append_changelog', new AppendChangelogTool()),
+    );
     
-    for (const tool of tools) {
-        const disposable = vscode.lm.registerTool(tool.name, tool);
-        context.subscriptions.push(disposable);
-        console.log(`Registered tool: ${tool.name}`);
-    }
+    console.log('Registered 7 Language Model Tools');
     
     // Register status bar item
     const statusBarItem = vscode.window.createStatusBarItem(

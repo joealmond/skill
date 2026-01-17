@@ -44,8 +44,8 @@ async function ensureParser(): Promise<void> {
     
     try {
         const TreeSitter = await import('web-tree-sitter');
-        await TreeSitter.default.init();
         Parser = TreeSitter.default;
+        await Parser.init();
         parserInstance = new Parser();
         console.log('Tree-sitter parser initialized');
     } catch (error) {

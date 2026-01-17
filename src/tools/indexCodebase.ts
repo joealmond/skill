@@ -35,7 +35,7 @@ export class IndexCodebaseTool implements vscode.LanguageModelTool<IndexCodebase
         const { scope, incremental = true } = options.input;
         
         try {
-            let result;
+            let result: { indexed: number; skipped?: number; errors: number };
             
             if (scope) {
                 // Index specific folder

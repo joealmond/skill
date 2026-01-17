@@ -129,7 +129,7 @@ export class VectorDb {
         const index = await this.ensureInitialized();
         const { topK = 10, filter = 'all', minScore = 0.5 } = options;
         
-        const results = await index.queryItems(queryEmbedding, topK * 2); // Over-fetch for filtering
+        const results = await index.queryItems(queryEmbedding, '', topK * 2); // Over-fetch for filtering
         
         return results
             .filter(r => {
