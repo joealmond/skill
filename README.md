@@ -40,13 +40,14 @@ Documentation-only agent (no code changes).
 @docs add changelog: Fixed login bug
 ```
 
-## Tools (11 total)
+## Tools (12 total)
 
 | Tool | Description |
 |------|-------------|
 | `read_spec` | Parse spec from ACTIVE/ |
 | `complete_spec` | Complete spec with docs |
 | `list_inbox` | Show active specs/ADRs |
+| `move_spec` | Move spec between ACTIVE/DONE |
 | `generate_adr` | Create ADR |
 | `append_changelog` | Add changelog entry |
 | `analyze_changes` | Git diff or mtime analysis |

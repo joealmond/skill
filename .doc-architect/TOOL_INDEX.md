@@ -164,6 +164,113 @@ Add changelog entry: Added new authentication system
 
 ---
 
+## read_spec
+
+**Purpose**: Parse a specification from docs/specs/ACTIVE/.
+
+**When to use**:
+- Starting work on a feature
+- Understanding implementation requirements
+- Reviewing spec details
+
+**Parameters**:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `specName` | string | Yes | Name of the spec file (with or without .md) |
+
+**Example**:
+```
+@architect read spec user-auth
+```
+
+---
+
+## analyze_changes
+
+**Purpose**: Analyze git diff or file modification times.
+
+**When to use**:
+- Checking recent code changes
+- Understanding what needs documentation
+- Pre-changelog generation
+
+**Parameters**:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `since` | string | No | Git ref or time (default: "HEAD~1") |
+| `scope` | string | No | Folder to analyze |
+
+**Example**:
+```
+@architect analyze changes
+```
+
+---
+
+## generate_adr
+
+**Purpose**: Create an Architecture Decision Record.
+
+**When to use**:
+- Recording architectural decisions
+- Documenting technology choices
+- Capturing design rationale
+
+**Parameters**:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `title` | string | Yes | ADR title |
+| `context` | string | Yes | Why this decision is needed |
+| `decision` | string | Yes | What was decided |
+| `consequences` | string | Yes | What results from this decision |
+| `status` | string | No | Proposed, Accepted, Deprecated (default: Proposed) |
+
+**Example**:
+```
+@architect generate ADR: Use PostgreSQL for persistence
+```
+
+---
+
+## complete_spec
+
+**Purpose**: Complete a specification with implementation and docs.
+
+**When to use**:
+- After finishing implementation
+- Moving spec from ACTIVE to DONE
+- Generating completion documentation
+
+**Parameters**:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `specName` | string | Yes | Name of the spec file |
+
+**Example**:
+```
+@architect complete spec user-auth
+```
+
+---
+
+## list_inbox
+
+**Purpose**: Show active specifications and pending ADRs.
+
+**When to use**:
+- Starting work session
+- Checking pending tasks
+- Understanding project state
+
+**Parameters**: None
+
+**Example**:
+```
+@architect what's in my inbox?
+```
+
+---
+
 ## Quick Reference Card
 
 | Tool | One-liner |
@@ -175,3 +282,8 @@ Add changelog entry: Added new authentication system
 | `run_ralph_loop` | Auto-process PROGRESS.md |
 | `move_spec` | Archive completed specs |
 | `append_changelog` | Update CHANGELOG.md |
+| `read_spec` | Parse spec from ACTIVE/ |
+| `analyze_changes` | Git diff or mtime analysis |
+| `generate_adr` | Create Architecture Decision Record |
+| `complete_spec` | Complete spec with docs |
+| `list_inbox` | Show active specs/ADRs |
