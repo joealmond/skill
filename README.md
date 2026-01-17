@@ -1,20 +1,19 @@
 # Doc-Architect
 
-> 🏗️ Self-Healing Documentation Engine for VS Code
+> 🏗️ Self-Healing Documentation Engine — MCP Server
 
-Doc-Architect is a VS Code Agent Skill that uses AI to detect stale documentation, autonomously update docs, and maintain a living knowledge base that evolves with your code.
+Doc-Architect is a portable MCP (Model Context Protocol) server that provides AI-powered documentation tools. It works with VS Code, Cursor, and any editor supporting MCP.
 
 ---
 
 ## ✨ Features
 
-- **🔍 Semantic Search** - Find related code and docs using AI embeddings
-- **🩺 Staleness Detection** - Automatically detect documentation drift
-- **🤖 Autonomous Updates** - Ralph loop processes tasks from PROGRESS.md
-- **📋 Spec Lifecycle** - Manage feature specifications (ACTIVE → DONE)
-- **📝 Auto Changelog** - Append entries following Keep a Changelog format
-- **🏛️ ADR Support** - Architecture Decision Records with templates
-- **🎨 Doc Gallery** - Generate diagrams and API references
+- **🔍 Semantic Search** — Find related code and docs using AI embeddings
+- **🩺 Staleness Detection** — Automatically detect documentation drift
+- **🤖 Autonomous Updates** — Ralph loop processes tasks from PROGRESS.md
+- **📋 Spec Lifecycle** — Manage feature specifications (ACTIVE → DONE)
+- **📝 Auto Changelog** — Append entries following Keep a Changelog format
+- **🌐 Portable** — Works with any MCP-compatible editor
 
 ---
 
@@ -22,37 +21,25 @@ Doc-Architect is a VS Code Agent Skill that uses AI to detect stale documentatio
 
 ### Installation
 
-1. **Clone or copy this project** to your workspace
+```bash
+cd skill
+npm install
+npm run build
+```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+### Configure VS Code
 
-3. **Build the extension**:
-   ```bash
-   npm run compile
-   ```
+The `mcp.json` file is already configured. VS Code will automatically detect and offer to enable the MCP server.
 
-4. **Install in VS Code**:
-   - Press `F5` to launch Extension Development Host, or
-   - Package with `vsce package` and install the `.vsix`
+### Using the Tools
 
-5. **Start using agents**:
-   ```
-   @doc-architect help
-   @doc-guardian check docs health
-   @doc-ralph run tasks
-   ```
+Once enabled, the tools are available to Copilot and custom agents:
 
-### First Run
-
-On first use, Doc-Architect will:
-1. Download tree-sitter WASM parsers (for code parsing)
-2. Download embedding model (if using @xenova/transformers)
-3. Create the vector database in extension storage
-
-This only happens once.
+```
+@doc-architect update the README to reflect API changes
+@doc-guardian check docs health
+@doc-ralph run pending tasks
+```
 
 ---
 
@@ -137,31 +124,27 @@ See [.doc-architect/TOOL_INDEX.md](.doc-architect/TOOL_INDEX.md) for full schema
 │   └── gallery/
 │       └── INDEX.md              # Generated docs index
 ├── src/
-│   ├── extension.ts              # Extension entry point
-│   ├── memory/
-│   │   ├── vectorDb.ts           # Vectra wrapper
-│   │   ├── embedder.ts           # Embedding generation
-│   │   ├── indexer.ts            # Code/doc indexer
-│   │   ├── parser.ts             # Tree-sitter parsing
-│   │   └── linter.ts             # Staleness detection
-│   ├── tools/
-│   │   ├── indexCodebase.ts      # Index tool
-│   │   ├── queryDocs.ts          # Search tool
-│   │   ├── writeFile.ts          # Write tool
-│   │   ├── checkStaleness.ts     # Staleness tool
-│   │   ├── runRalphLoop.ts       # Ralph tool
-│   │   ├── moveSpec.ts           # Spec tool
-│   │   └── appendChangelog.ts    # Changelog tool
-│   └── utils/
-│       └── fileOps.ts            # File utilities
+│   ├── mcp-server.ts            # MCP server entry point
+│   └── tools/
+│       └── index.ts              # All tool definitions and handlers
+├── out/                          # Compiled JavaScript
+├── mcp.json                      # MCP server configuration
 ├── PROGRESS.md                   # Task list for Ralph
-├── package.json                  # Extension manifest
-└── tsconfig.json                 # TypeScript config
+├── package.json
+└── tsconfig.json
 ```
 
 ---
 
 ## 📄 File Reference
+
+### MCP Configuration
+
+| File | Purpose |
+|------|---------|  
+| [mcp.json](mcp.json) | MCP server definition for VS Code |
+| [src/mcp-server.ts](src/mcp-server.ts) | Server entry point with stdio transport |
+| [src/tools/index.ts](src/tools/index.ts) | Tool definitions and request handlers |
 
 ### Agent Files (`.github/agents/`)
 
@@ -289,35 +272,34 @@ Edit `.doc-architect/config.json`:
 # Install dependencies
 npm install
 
-# Compile TypeScript
-npm run compile
+# Build
+npm run build
 
 # Watch mode
 npm run watch
 
-# Launch Extension Host
-# Press F5 in VS Code
+# Test MCP server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | node out/mcp-server.js
 ```
 
 ---
 
 ## 📦 Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| vectra | 0.12.3 | Local file-based vector database |
-| web-tree-sitter | 0.26.3 | WASM-based code parsing |
-| @xenova/transformers | 2.17.2 | Local embedding generation (optional) |
-
----
+| Package | Purpose |
+|---------|---------|  
+| @modelcontextprotocol/sdk | MCP server implementation |
+| vectra | Local file-based vector database |
+| zod | Schema validation for tool inputs |
+| @xenova/transformers | Local embedding generation (optional) |
 
 ## 🗺️ Roadmap
 
+- [x] MCP server implementation
 - [ ] VS Code native embeddings (when API available)
-- [ ] More language grammars (Python, Go, Rust)
+- [ ] Vector-based semantic search
 - [ ] Git integration for change detection
-- [ ] Custom prompt templates
-- [ ] MCP server integration
+- [ ] More language support
 
 ---
 
@@ -329,6 +311,6 @@ MIT
 
 ## 🙏 Acknowledgments
 
+- [Model Context Protocol](https://modelcontextprotocol.io/) - Portable tool integration
 - [Vectra](https://github.com/Stevenic/vectra) - Local vector database
-- [Tree-sitter](https://tree-sitter.github.io/) - Code parsing
 - [Hugging Face Transformers.js](https://huggingface.co/docs/transformers.js) - Local embeddings
