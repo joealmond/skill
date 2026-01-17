@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "doc-architect": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/out/mcp-server.js"],
+      "env": {
+        "WORKSPACE_PATH": "${workspaceFolder}"
+      }
+    }
+  }
+}
