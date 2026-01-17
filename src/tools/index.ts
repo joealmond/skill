@@ -775,7 +775,7 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   const activePath = path.join(workspacePath, 'docs', 'specs', 'ACTIVE', fileName);
   const donePath = path.join(workspacePath, 'docs', 'specs', 'DONE', fileName);
   
-  // Read spec to get title
+  // Read spec to get title and parse structure
   let specContent: string;
   let specTitle = specName;
   try {
@@ -787,35 +787,89 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   }
   
   const actions: string[] = [];
+  const today = new Date().toISOString().split('T')[0];
   
-  // 1. Add changelog entry
+  // 1. Update spec frontmatter and check all boxes
+  const fm = parseFrontmatter(specContent);
+  
+  // Create updated frontmatter with all fields filled
+  const updatedFm = {
+    completed: fm.completed || today,
+    priority: fm.priority || 'P1',
+    created: fm.created || today,
+    status: 'DONE',
+  };
+  
+  // Replace old frontmatter with new one
+  specContent = specContent.replace(
+    /^---\n[\s\S]*?\n---\n/,
+    `---\ncompleted: ${updatedFm.completed}\npriority: ${updatedFm.priority}\ncreated: ${updatedFm.created}\nstatus: ${updatedFm.status}\n---\n`
+  );
+  
+  // Check all requirement checkboxes
+  specContent = specContent.replace(/- \[ \]/g, '- [x]');
+  
+  // 2. Add changelog entry
   const entry = changelogEntry || `Completed: ${specTitle}`;
   await appendChangelog({ category: 'Added', entry }, workspacePath);
   actions.push(`Changelog: "${entry}"`);
   
-  // 2. Create ADR if requested
-  let adrResult = null;
+  // 3. Create ADR if requested
   if (createAdr) {
-    adrResult = await generateAdr({
+    const adrResult = await generateAdr({
       title: specTitle,
       context: adrContext || `Implementation of spec: ${specTitle}`,
       decision: `Implemented ${specTitle} as specified.`,
       consequences: 'See spec for details.',
-      priority: 'P1',
+      priority: fm.priority || 'P1',
     }, workspacePath);
     actions.push(`ADR: ${(adrResult as { fileName: string }).fileName}`);
   }
   
-  // 3. Update spec status and move to DONE
-  const today = new Date().toISOString().split('T')[0];
-  specContent = specContent.replace(/status:\s*\w+/, 'status: done');
-  if (!specContent.includes('completed:')) {
-    specContent = specContent.replace(/---\n/, `---\ncompleted: ${today}\n`);
+  // 4. Create feature documentation (if feature docs dir exists)
+  try {
+    const docSlug = specName.replace('.md', '').toLowerCase().replace(/\s+/g, '-');
+    const docPath = path.join(workspacePath, 'docs', 'features', `${docSlug}.md`);
+    
+    // Only create if not already exists
+    try {
+      await fs.stat(docPath);
+    } catch {
+      // File doesn't exist, create basic documentation
+      const docContent = `# ${specTitle}
+
+## Overview
+
+${specTitle} implementation.
+
+## Usage
+
+See [spec](../specs/DONE/${fileName}) for details.
+`;
+      await fs.mkdir(path.dirname(docPath), { recursive: true });
+      await fs.writeFile(docPath, docContent, 'utf-8');
+      actions.push(`Documentation created`);
+    }
+  } catch {
+    // Skip if documentation creation fails
   }
   
+  // 5. Index codebase in vector DB
+  try {
+    await indexCodebase({ force: true }, workspacePath);
+    actions.push(`Codebase indexed`);
+  } catch {
+    // Skip if indexing fails
+  }
+  
+  // 6. Move spec to DONE folder
   await fs.mkdir(path.dirname(donePath), { recursive: true });
   await fs.writeFile(donePath, specContent, 'utf-8');
-  await fs.unlink(activePath);
+  try {
+    await fs.unlink(activePath);
+  } catch {
+    // Already moved or doesn't exist
+  }
   actions.push(`Moved to DONE`);
   
   return {
