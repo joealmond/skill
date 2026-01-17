@@ -1,0 +1,5 @@
+{
+  "chat.mcp.enabled": true,
+  "chat.mcp.autostart": true,
+  "chat.agent.enabled": true
+}

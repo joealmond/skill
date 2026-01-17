@@ -6,6 +6,9 @@
       "args": ["${workspaceFolder}/out/mcp-server.js"],
       "env": {
         "WORKSPACE_PATH": "${workspaceFolder}"
+      },
+      "dev": {
+        "watch": "out/**/*.js"
       }
     }
   }
