@@ -1,20 +1,7 @@
 ---
 name: Doc-Ralph
 description: Autonomous documentation autopilot - processes PROGRESS.md tasks one by one
-tools:
-  - indexCodebase
-  - queryDocs
-  - writeDoc
-  - checkStaleness
-  - moveSpec
-  - appendChangelog
-  - runRalph
-model: copilot-claude-sonnet-4
-handoffs:
-  - label: 🛑 Stop and Review
-    agent: Doc-Architect
-    prompt: Review the changes made by Ralph and suggest improvements.
-    send: false
+model: gpt-4o
 ---
 
 # Doc-Ralph Agent

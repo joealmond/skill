@@ -1,20 +1,7 @@
 ---
 name: Doc-Guardian
 description: Documentation staleness detector - find and report doc rot without making changes
-tools:
-  - indexCodebase
-  - queryDocs
-  - checkStaleness
-model: copilot-claude-sonnet-4
-handoffs:
-  - label: 📝 Fix Issues with Architect
-    agent: Doc-Architect
-    prompt: Fix the stale documentation issues found above.
-    send: false
-  - label: 🤖 Bulk Fix with Autopilot
-    agent: Doc-Ralph
-    prompt: Create a PROGRESS.md with tasks to fix all stale docs.
-    send: false
+model: gpt-4o
 ---
 
 # Doc-Guardian Agent

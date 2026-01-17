@@ -1,23 +1,7 @@
 ---
 name: Doc-Architect
 description: Self-healing documentation engine - write, update, and maintain docs autonomously
-tools:
-  - indexCodebase
-  - queryDocs
-  - writeDoc
-  - checkStaleness
-  - moveSpec
-  - appendChangelog
-model: copilot-claude-sonnet-4
-handoffs:
-  - label: 🛡️ Switch to Guardian Mode
-    agent: Doc-Guardian
-    prompt: Check for stale documentation in this codebase.
-    send: false
-  - label: 🤖 Start Autopilot
-    agent: Doc-Ralph
-    prompt: Run the Ralph loop to process PROGRESS.md tasks.
-    send: false
+model: gpt-4o
 ---
 
 # Doc-Architect Agent
