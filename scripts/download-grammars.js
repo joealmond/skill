@@ -1,83 +1,35 @@
 /**
- * Download Tree-sitter WASM grammars
+ * Download Tree-sitter WASM grammars (optional setup)
  * 
- * This script runs after npm install to download the required
- * tree-sitter grammar files for JavaScript and TypeScript.
+ * Tree-sitter grammars will be loaded at runtime from the web-tree-sitter package.
+ * This script just creates the parsers directory for caching.
+ * 
+ * For manual download, you can build grammars from source:
+ * https://tree-sitter.github.io/tree-sitter/creating-parsers#building-grammar-wasm-files
  */
 
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const GRAMMARS = [
-    {
-        name: 'tree-sitter-javascript.wasm',
-        url: 'https://unpkg.com/tree-sitter-javascript@0.21.4/tree-sitter-javascript.wasm'
-    },
-    {
-        name: 'tree-sitter-typescript.wasm', 
-        url: 'https://unpkg.com/tree-sitter-typescript@0.21.2/tree-sitter-typescript.wasm'
-    }
-];
+// Grammars are loaded at runtime from web-tree-sitter or built from source
+// Pre-downloading is not required - the extension handles this dynamically
 
 const DEST_DIR = path.join(__dirname, '..', '.doc-architect', 'parsers');
 
-async function downloadFile(url, dest) {
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(dest);
-        
-        https.get(url, (response) => {
-            if (response.statusCode === 301 || response.statusCode === 302) {
-                // Handle redirect
-                https.get(response.headers.location, (res) => {
-                    res.pipe(file);
-                    file.on('finish', () => {
-                        file.close();
-                        resolve();
-                    });
-                }).on('error', reject);
-            } else if (response.statusCode === 200) {
-                response.pipe(file);
-                file.on('finish', () => {
-                    file.close();
-                    resolve();
-                });
-            } else {
-                reject(new Error(`HTTP ${response.statusCode}`));
-            }
-        }).on('error', (err) => {
-            fs.unlink(dest, () => {}); // Delete incomplete file
-            reject(err);
-        });
-    });
-}
-
 async function main() {
-    // Create destination directory
+    console.log('Tree-sitter setup...');
+    
+    // Create destination directory for future grammar caching
     if (!fs.existsSync(DEST_DIR)) {
         fs.mkdirSync(DEST_DIR, { recursive: true });
     }
     
-    console.log('Downloading tree-sitter grammars...');
+    // Create marker file
+    const markerPath = path.join(DEST_DIR, '.initialized');
+    fs.writeFileSync(markerPath, new Date().toISOString());
     
-    for (const grammar of GRAMMARS) {
-        const destPath = path.join(DEST_DIR, grammar.name);
-        
-        if (fs.existsSync(destPath)) {
-            console.log(`  ✓ ${grammar.name} (already exists)`);
-            continue;
-        }
-        
-        try {
-            console.log(`  ↓ ${grammar.name}...`);
-            await downloadFile(grammar.url, destPath);
-            console.log(`  ✓ ${grammar.name}`);
-        } catch (error) {
-            console.error(`  ✗ ${grammar.name}: ${error.message}`);
-            // Don't fail the install, grammars can be downloaded later
-        }
-    }
-    
+    console.log('  ✓ Parser directory created');
+    console.log('  ℹ Grammars will be loaded at runtime on first use');
     console.log('Done!');
 }
 
