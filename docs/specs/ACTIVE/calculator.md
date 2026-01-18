@@ -12,7 +12,6 @@ use javascript
 
 ## Files to Modify
 
-- in src
 
 ## Definition of Done
 

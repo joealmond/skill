@@ -803,6 +803,13 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   const todayISO = toISODate(today);
   const yesterdayISO = toISODate(new Date(today.getTime() - 24 * 60 * 60 * 1000));
 
+  const ensureFrontmatter = (content: string) => {
+    if (!/^---\n[\s\S]*?\n---\n/.test(content)) {
+      return `---\n---\n${content}`;
+    }
+    return content;
+  };
+
   const updateFrontmatterValue = (content: string, key: string, value: string) => {
     const re = new RegExp(`${key}:\\s*[^\\n]+`);
     if (re.test(content)) return content.replace(re, `${key}: ${value}`);
@@ -825,17 +832,28 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
     return content.replace(sectionRe, `${match[1]}${body}`);
   };
 
-  const ensureFilesSection = (content: string) => {
+  const ensureFilesSection = (content: string, modifiedFiles: string[]) => {
     const sectionRe = /(## Files to Modify\n\n)([\s\S]*?)(?=\n## |\n# |$)/;
     const match = content.match(sectionRe);
-    const defaultLine = '- `docs/CHANGELOG.md` - recorded by complete_spec';
+    const lines = modifiedFiles.length > 0 
+      ? modifiedFiles.map(f => `- \`${f}\` - implementation file`)
+      : ['- `docs/CHANGELOG.md` - recorded by complete_spec'];
+    const fileLines = lines.join('\n');
+    
     if (!match) {
-      return content.trimEnd() + `\n## Files to Modify\n\n${defaultLine}\n\n`;
+      return content.trimEnd() + `\n## Files to Modify\n\n${fileLines}\n\n`;
     }
     let body = match[2];
     const hasPath = /- `[^`]+`/.test(body);
     if (!hasPath) {
-      body = body.trimEnd() + `\n${defaultLine}\n`;
+      body = body.trimEnd() + `\n${fileLines}\n`;
+    } else if (modifiedFiles.length > 0) {
+      // Append new files to existing list
+      for (const file of modifiedFiles) {
+        if (!body.includes(`\`${file}\``)) {
+          body = body.trimEnd() + `\n- \`${file}\` - implementation file\n`;
+        }
+      }
     }
     return content.replace(sectionRe, `${match[1]}${body}`);
   };
@@ -852,6 +870,23 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   }
   
   const actions: string[] = [];
+  
+  // Ensure frontmatter exists
+  specContent = ensureFrontmatter(specContent);
+  
+  // Get modified files from git
+  let modifiedFiles: string[] = [];
+  try {
+    const gitOutput = execSync('git diff --name-only HEAD~1 2>/dev/null || git diff --name-only --cached 2>/dev/null || echo ""', {
+      cwd: workspacePath,
+      encoding: 'utf-8',
+    }).trim();
+    modifiedFiles = gitOutput.split('\n').filter(f => f && !f.includes('specs/') && !f.includes('adr/'));
+  } catch {
+    // Git not available or no changes
+    modifiedFiles = [];
+  }
+  
   const fm = parseFrontmatter(specContent);
   
   let created = isISODate(fm.created) ? fm.created : yesterdayISO;
@@ -872,7 +907,7 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   }
   specContent = ensureChecklist(specContent, 'Requirements', 'Auto-completed requirement');
   specContent = ensureChecklist(specContent, 'Definition of Done', 'Auto-completed DoD item');
-  specContent = ensureFilesSection(specContent);
+  specContent = ensureFilesSection(specContent, modifiedFiles);
   
   // 2. Add changelog entry
   const entry = changelogEntry || `Completed: ${specTitle}`;
