@@ -1,29 +1,32 @@
 ---
 priority: P1
 created: YYYY-MM-DD
+updated: YYYY-MM-DD
 status: active
 ---
 
-# Spec: [Title]
+# Spec: Meaningful, specific title
 
 ## Goal
 
-What this feature/change accomplishes in one paragraph.
+Describe the user-facing outcome in one short paragraph.
 
 ## Requirements
 
-- [ ] Requirement 1
-- [ ] Requirement 2
-- [ ] Requirement 3
+- [ ] Core behavior is implemented
+- [ ] Secondary requirement
+- [ ] Stretch requirement
 
 ## Files to Modify
 
-- `path/to/file.ts` - description of changes
-- `path/to/another.ts` - description
+- `src/path/to/file.ts` - what changes here
+- `docs/path/to/doc.md` - docs or changelog update
 
 ## Definition of Done
 
-- [ ] Code implemented
-- [ ] Tests passing
-- [ ] Documentation updated
+- [ ] Code implemented or updated
+- [ ] Tests passing (unit/integration as appropriate)
+- [ ] Documentation updated (README/guides/spec)
 - [ ] Changelog entry added
+
+> Ensure `updated` is later than `created`, `status` reflects progress, at least one requirement and one DoD item stay checked. Ralph loop continues until all boxes are checked.

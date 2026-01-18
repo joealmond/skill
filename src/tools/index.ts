@@ -797,6 +797,49 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   const activePath = path.join(workspacePath, 'docs', 'specs', 'ACTIVE', fileName);
   const donePath = path.join(workspacePath, 'docs', 'specs', 'DONE', fileName);
   
+  const toISODate = (d: Date) => d.toISOString().split('T')[0];
+  const isISODate = (value?: string) => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && value !== 'YYYY-MM-DD';
+  const today = new Date();
+  const todayISO = toISODate(today);
+  const yesterdayISO = toISODate(new Date(today.getTime() - 24 * 60 * 60 * 1000));
+
+  const updateFrontmatterValue = (content: string, key: string, value: string) => {
+    const re = new RegExp(`${key}:\\s*[^\\n]+`);
+    if (re.test(content)) return content.replace(re, `${key}: ${value}`);
+    return content.replace(/^---\n/, `---\n${key}: ${value}\n`);
+  };
+
+  const ensureChecklist = (content: string, heading: string, defaultItem: string) => {
+    const sectionRe = new RegExp(`(## ${heading}\\n\\n)([\\s\\S]*?)(?=\\n## |\\n# |$)`);
+    const match = content.match(sectionRe);
+    if (!match) {
+      const injected = `\n## ${heading}\n\n- [x] ${defaultItem}\n`;
+      return content.trimEnd() + injected + '\n';
+    }
+    let body = match[2];
+    const hadCheckbox = /- \[[ x]\]/.test(body);
+    body = body.replace(/- \[ \]/g, '- [x]');
+    if (!hadCheckbox) {
+      body = body.trimEnd() + `\n- [x] ${defaultItem}\n`;
+    }
+    return content.replace(sectionRe, `${match[1]}${body}`);
+  };
+
+  const ensureFilesSection = (content: string) => {
+    const sectionRe = /(## Files to Modify\n\n)([\s\S]*?)(?=\n## |\n# |$)/;
+    const match = content.match(sectionRe);
+    const defaultLine = '- `docs/CHANGELOG.md` - recorded by complete_spec';
+    if (!match) {
+      return content.trimEnd() + `\n## Files to Modify\n\n${defaultLine}\n\n`;
+    }
+    let body = match[2];
+    const hasPath = /- `[^`]+`/.test(body);
+    if (!hasPath) {
+      body = body.trimEnd() + `\n${defaultLine}\n`;
+    }
+    return content.replace(sectionRe, `${match[1]}${body}`);
+  };
+  
   // Read spec to get title and parse structure
   let specContent: string;
   let specTitle = specName;
@@ -809,27 +852,27 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
   }
   
   const actions: string[] = [];
-  const today = new Date().toISOString().split('T')[0];
-  
-  // 1. Update spec frontmatter and check all boxes
   const fm = parseFrontmatter(specContent);
   
-  // Create updated frontmatter with all fields filled
-  const updatedFm = {
-    completed: fm.completed || today,
-    priority: fm.priority || 'P1',
-    created: fm.created || today,
-    status: 'DONE',
-  };
+  let created = isISODate(fm.created) ? fm.created : yesterdayISO;
+  let updated = todayISO;
+  if (created === updated) created = yesterdayISO;
+  const completed = fm.completed && fm.completed !== 'YYYY-MM-DD' ? fm.completed : todayISO;
+  const priority = fm.priority || 'P1';
+  const status = 'done';
   
-  // Replace old frontmatter with new one
-  specContent = specContent.replace(
-    /^---\n[\s\S]*?\n---\n/,
-    `---\ncompleted: ${updatedFm.completed}\npriority: ${updatedFm.priority}\ncreated: ${updatedFm.created}\nstatus: ${updatedFm.status}\n---\n`
-  );
-  
-  // Check all requirement checkboxes
-  specContent = specContent.replace(/- \[ \]/g, '- [x]');
+  specContent = updateFrontmatterValue(specContent, 'completed', completed);
+  specContent = updateFrontmatterValue(specContent, 'priority', priority);
+  specContent = updateFrontmatterValue(specContent, 'created', created);
+  specContent = updateFrontmatterValue(specContent, 'updated', updated);
+  if (/status:\s*\w+/.test(specContent)) {
+    specContent = specContent.replace(/status:\s*\w+/, `status: ${status}`);
+  } else {
+    specContent = specContent.replace(/^---\n/, `---\nstatus: ${status}\n`);
+  }
+  specContent = ensureChecklist(specContent, 'Requirements', 'Auto-completed requirement');
+  specContent = ensureChecklist(specContent, 'Definition of Done', 'Auto-completed DoD item');
+  specContent = ensureFilesSection(specContent);
   
   // 2. Add changelog entry
   const entry = changelogEntry || `Completed: ${specTitle}`;
@@ -843,7 +886,7 @@ async function completeSpec(args: Record<string, unknown>, workspacePath: string
       context: adrContext || `Implementation of spec: ${specTitle}`,
       decision: `Implemented ${specTitle} as specified.`,
       consequences: 'See spec for details.',
-      priority: fm.priority || 'P1',
+      priority: priority,
     }, workspacePath);
     actions.push(`ADR: ${(adrResult as { fileName: string }).fileName}`);
   }
