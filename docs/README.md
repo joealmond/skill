@@ -60,3 +60,14 @@ Documentation-only (no code changes).
 
 - [specs/TEMPLATE.md](specs/TEMPLATE.md) - Spec template with frontmatter
 - [adr/TEMPLATE.md](adr/TEMPLATE.md) - ADR template with frontmatter
+
+## Planned and In Progress
+
+- Modularize tool implementations into smaller modules (completed).
+- Add a lightweight on-disk index cache to support faster queries (completed).
+- Investigate lazy MCP loading in VS Code (blocked by current MCP activation model).
+- Add cross-platform path guards for writes (Windows/Linux/macOS) (completed).
+- Improve query performance with file size caps and scan limits (completed).
+- Harden spec parsing with shared markdown utilities (completed).
+- Add tests for core tools (planned).
+- Add linting/formatting (planned).

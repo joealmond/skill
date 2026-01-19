@@ -12,6 +12,7 @@
     "build": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "start": "node out/mcp-server.js",
+    "tool": "node out/cli.js",
     "postinstall": "node scripts/download-grammars.cjs"
   },
   "dependencies": {

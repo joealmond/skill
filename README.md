@@ -19,6 +19,12 @@ npm install
 npm run build
 ```
 
+Run tools directly:
+
+```bash
+npm run tool -- list_inbox
+```
+
 VS Code will detect `mcp.json` and offer to enable the server.
 
 ## Agents
@@ -96,6 +102,17 @@ npm install
 npm run build
 npm run watch
 ```
+
+## Roadmap (Planned)
+
+- Modularize tool implementations into focused modules (completed).
+- Improve indexing with a lightweight on-disk index cache (completed).
+- Explore lazy MCP loading via VS Code MCP lifecycle hooks (blocked by current VS Code limitations).
+- Strengthen path safety checks for cross-platform (Windows/Linux/macOS) file writes (completed).
+- Improve query performance with file size caps and scanning limits (completed).
+- Harden spec parsing by consolidating markdown helpers (completed).
+- Add tests for core tool behavior (planned).
+- Add linting/formatting (planned).
 
 ## License
 
